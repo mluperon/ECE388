@@ -1,0 +1,84 @@
+//D7 & D6
+//D7 clk (PCINT23)
+//D6 DT
+
+// B1 clock (clk) (PCINT1)
+// B0 data (DT) 
+#define CLK 1
+#define DATA 0
+
+volatile uint32_t count = 0 //volatile, always fetch from ram 
+
+DDRD &= ~(_BV(CLK) | _BV(DATA)); //BV is just a macro that says 1 shifted left; setting ddrd to inputs
+DDRB = 0xFF;
+
+
+//option 1  - Ties up CPU
+
+while(1)
+{
+	val = PIND & _BV(DATA) 
+	if (val ==0): //Masking other bits; taking pin d and AND it with dd7
+	{val2 = PIND & _BV(DATA)
+	if (val2 == 0 && val != oldval) //anticlockwise
+		count--;
+	else 
+		count++;
+	} 
+	oldval=val
+} 
+
+//option 2 - uses interrupt - still kinda crap because it doesn't take into account noise
+
+PCICR |= (1<<PCIE2) ; //pcints on PORTD
+PCSK2 |= (1<<DATA); //Bit D7 only SECOND PIN CHANCE INTERRUPT 
+
+sei; //enable global interrupts 
+
+ISR(PCINT2_vect){
+	//if falling edge
+	if (PIND & _BV(DATA)==0)
+	{
+		if(PIND & _BV(CLK) ==0)
+		{
+			count--;
+		}
+		else
+		{
+			count++;
+		}
+	}
+	else
+	{
+		//rising edge
+		//do nothing
+	}
+}
+
+// OPTION 3 - BEST
+
+
+PCICR |= (1<<PCIE0) ; //pcints on PORTD
+PCSK1 |= (1<<7); //Bit D7 only SECOND PIN CHANCE INTERRUPT 
+
+sei; //enable global interrupts 
+
+ISR(PCINT0_vect){
+	//if falling edge
+	if (PIND & _BV(7)==0)
+	{
+		if(PIND & _BV(6) ==0)
+		{
+			count--;
+		}
+		else
+		{
+			count++;
+		}
+	}
+	else
+	{
+		//rising edge
+		//do nothing
+	}
+}
