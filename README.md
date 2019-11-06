@@ -3,7 +3,7 @@ Owners Alex Amorim, Dylan Tocci, Liam Cross, Melanie Luperon
 
 # TO DO
 Here's a general list of what needs to be accomplished in the coming days:
-  - [ ] CATME survery (due 11/5)
+  - [ ] CATME survery (due 11/8)
   - [ ] PCB design (due 11/11)
   - [ ] Research accelerometer 
     - Pinout
