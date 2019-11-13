@@ -3,13 +3,14 @@ Owners Alex Amorim, Dylan Tocci, Liam Cross, Melanie Luperon
 
 # TO DO
 Here's a general list of what needs to be accomplished in the coming days:
-  - [ ] CATME survery (due 11/8)
-  - [ ] PCB design (due 11/11)
+  - [X] CATME survery (due 11/8)
+  - [X] PCB design (due 11/11)
+  - [ ] Tweak PCD design (due by Friday?)
   - [ ] Research accelerometer 
-    - Pinout
-    - Power requirements
-    - Data transimission
-    - How it will be incorporated into code
+    - [x]Pinout
+    - [x]Power requirements
+    - [ ]Data transimission
+    - [ ]How it will be incorporated into code
   - [ ] Create design for holding LCD and Rotary Encoder
     - 3D print?
     - Material?
@@ -20,9 +21,9 @@ Here's a general list of what needs to be accomplished in the coming days:
     - How to accurately map out measurements?
     - Will it be attached to the project?
   - [ ] Create fully functioning code prototype for UI
-    - Have peripheral go to corresponding port
-    - Ensure LCD can properly be navigated with rotary encoder
-    - Ensure values can be changed ONLY within their limits
+    - [ ] Have peripheral go to corresponding port
+    - [ ] Ensure LCD can properly be navigated with rotary encoder
+    - [ ]Ensure values can be changed ONLY within their limits
   - [ ] **CREATE TEST PLAN**
     - We might need to plan out a day for this one, it will take a while
     - Do we need code tests?
