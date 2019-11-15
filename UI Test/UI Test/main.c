@@ -3,62 +3,83 @@
  *
  * Created: 4/8/2019 10:29:57 AM
  * Author : dtocci1
+ *
+ *	TO DO: Finish pin change routine
+ *		   Implement all peripherals and ports
  */ 
+
 #define F_CPU 16000000
 #include <avr/delay.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <avr/io.h>
 #include <avr/interrupt.h>
-#include "lcd_functions.h"
-#include "floatConvert.h"
+#include "lcd_functions.h" // Dr. Viall's code for using the LCD
+#include "floatConvert.h" // Code to convert a float into a character array
 
 #define HEIGHT_SELECT "[HEIGHT]  ANGLE "
 #define ANGLE_SELECT " HEIGHT  [ANGLE]"
 #define NO_HS_SELECT " HEIGHT   ANGLE "
 #define DEFAULT_ANGLE " 00.0     00.0"
-#define MAX_HEIGHT 100
-#define MAX_ANGLE 90
+#define MAX_HEIGHT 15 // max height value 15ft
+#define MAX_ANGLE 90 // max angle value 90 degrees
+#define RIGHT 122 // PINC value for turning right
+#define LEFT 124 // PINC value for turning left
+#define BUTTON 118 // PINC value for pushing button
 #define _BV(n) (1 << n)
 
-typedef enum __attribute__ ((__packed__)) {HEIGHT, ANGLE, CHEIGHT, CANGLE} State;
-volatile int tmpCLK=0;
-volatile int tmpDT=0;
-volatile int tmpSW=0;
+typedef enum __attribute__ ((__packed__)) {HEIGHT, ANGLE, CHEIGHT, CANGLE} State; // used to navigate display
+	//HEIGHT =  [HEIGHT] ANGLE
+	//		   	 0.00   0.00			// Height is selected, turning knob will change it to angle selection (ANGLE), clicking button will change it to change height (CHEIGHT)
+	//
+	//ANGLE =  HEIGHT [ANGLE]			// Angle is selected, turning knob will change it to height selection (HEIGHT), clicking button will change it to change angle (CANGLE)
+	//		    0.00   0.00
+	//
+	//CHEIGHT = HEIGHT ANGLE			// Height value is selected, turning knob will increase or decrease height by 0.1 as long as within bounds of [0,15]
+	//		   [0.00]  0.00				// Clicking button will confirm value of height setting valueConfirm flag = 1 and returning user to height selection (HEIGHT)
+	//
+	//CHEIGHT = HEIGHT ANGLE			// Angle value is selected, turning knob will increase or decrease angle by 0.1 as long as within bounds of [0,90]
+	//		    0.00  [0.00]			// Clicking button will confirm value of angle setting valueConfirm flag = 1 and returning user to angle selection (ANGLE)
+	//
+	
 volatile int state = HEIGHT; // starts in height selection by default
-volatile float height = 10.3;
-volatile float angle = 00.0;
-volatile int valueConfirm = 0;
+volatile float height = 0.00; // global variable for height
+volatile float angle = 00.0; // global variable for angle
+volatile int valueConfirm = 0; // flag signifying a new value for EITHER height or angle has been made. Will be used in PID loop to signal when to adjust fan speeds
+volatile char heightConv[16] = ""; // global character array for storing height to be output to LCD
+volatile char angleConv[16] = ""; // global character array for storing angle to be output to LCD
 
 int main(void)
 {
 	// arbitrary ports right now
-	DDRC &= ~(_BV(2) | _BV(1) | _BV(0));
-	PCICR |= (1<<PCIE1); // pin change interrupt 1
-	PCMSK1 |= (1<<PCINT8) | (1<<PCINT9) | (1<<PCINT10);
+	DDRC &= ~(_BV(2) | _BV(1) | _BV(4)); // sets PORTC 1, 2, and 4 to input (input from rotary encoder)
+										 // 1 = DT signal
+										 // 2 = CLK signal
+										 // 4 = SW signal (button press)
+										 
+	PCICR |= (1<<PCIE1); // Enable pin change interrupt on PORTC
+	PCMSK1 |= (1<<PCINT11) | (1<<PCINT9) | (1<<PCINT10); // Enable Pins 1,2, and 4 to trigger this interrupt
 	
+	// These variables are Char arrays as the LCD cannot output int/float values, it must be sent as a string
 	
-	char heightConv[16] = "";
-	char angleConv[16] = "";
-	char test[4] = "";
-
-	lcd_init();
-	angleConv[0]='0';
+	lcd_init(); // initialize the LCD according to Dr. Viall's 263 code
+	
+	angleConv[0]='0'; // v Set up height and angle to start at 00.0 value
 	angleConv[1]='0';
 	angleConv[2]='.';
 	angleConv[3]='0';
 	heightConv[0]='0';
 	heightConv[1]='0';
 	heightConv[2]='.';
-	heightConv[3]='0';
+	heightConv[3]='0';// ^
 	
 	// PRINT DEFAULT STATE
-	lcd_gotoxy(1,1);
-	lcd_print(HEIGHT_SELECT);
-	lcd_gotoxy(1,2);
-	lcd_print(DEFAULT_ANGLE);
+	lcd_gotoxy(1,1); // go to row 1 column 1 of LCD
+	lcd_print(HEIGHT_SELECT); // Print ->   [HEIGHT] ANGLE
+	lcd_gotoxy(1,2); // go to row 2 column 2 of LCD
+	lcd_print(DEFAULT_ANGLE); // Print -> 00.0 00.0
 	
-	sei();
+	sei(); // enable global interrupts
 	// ***** MAIN LOOP *****//
 	while(1)
 	{
@@ -83,70 +104,91 @@ int main(void)
 
 ISR(PCINT1_vect) 
 {
-	tmpCLK=PINC & (1<<2);
-	tmpDT=PINC&(1<<1);
-	tmpSW=PINC&(1<<0);
-	if(tmpCLK == 0)
+
+	if(PINC == RIGHT) //if right turn triggered interrupt
 	{
-		if (tmpDT == 0) // right turn	
+		switch(state)
 		{
-			switch(state)
-			{
-				case HEIGHT: // change to angle state
-					lcd_print(ANGLE_SELECT);
-					state = ANGLE;
-					break;
-				case ANGLE: // do nothing OR change to height state?
-					// do nothing as of rn fuck it
-					break;
-				case CHEIGHT: // increment height value (as long as < MAX (?))
-					if (height < MAX_HEIGHT) // total guess right now
-						height=height + 0.1; //increment height by tenth
-					break;	
-				case CANGLE: // increment angle value (as long as <= MAX (90))
-					if (angle < MAX_ANGLE)
-						angle=angle + 0.1;
-					break;
-			}
-		}
-		else // left turn
-		{
-			switch(state)
-			{
-				case HEIGHT: // do nothing OR change to angle state?
-					// again we aren't doing anything (rn) for this so fuck it
-					break;
-				case ANGLE: // change to height state
-					lcd_print(HEIGHT_SELECT);
-					state = HEIGHT;
-					break;
-				case CHEIGHT: // decrement height value (as long as >= MIN (0) )
-					if (height > 0)
-						height = height - 0.1;
-					break;
-				case CANGLE: // increment angle value (as long as >= MIN (0))
-					if(angle > 0)
-						angle = angle - 1;
-					break;
-			}
+			case HEIGHT: // change to angle state
+				lcd_print(ANGLE_SELECT);
+				state = ANGLE;
+				break;
+			case ANGLE: // do nothing OR change to height state?
+				// do nothing as of rn fuck it
+				break;
+			case CHEIGHT: // increment height value (as long as < MAX (?))
+				if (height < MAX_HEIGHT) // total guess right now
+				{
+					height=height + 0.1; //increment height by tenth
+					ftoa(height,heightConv,1); // convert height to char array (heightConv) with 1 decimal place
+					print_height_change(heightConv); // print conversion to LCD
+				}
+				break;	
+			case CANGLE: // increment angle value (as long as <= MAX (90))
+				if (angle < MAX_ANGLE)
+				{
+					angle=angle + 0.1;
+					ftoa(angle,angleConv,1); // convert angle to char array (angleConv) with 1 decimal place
+					print_angle_change(angleConv);	// print conversion to LCD
+				}
+				break;
 		}
 	}
-	else if(tmpSW == 0) // button press
+	
+	
+	if (PINC == LEFT) // If left turn triggered interrupt
+	{
+		switch(state)
+		{
+			case HEIGHT: // do nothing OR change to angle state?
+				// again we aren't doing anything (rn) for this so fuck it
+				break;
+			case ANGLE: // change to height state
+				print_height_angle(angleConv,heightConv, 0);
+				state = HEIGHT;
+				break;
+			case CHEIGHT: // decrement height value (as long as >= MIN (0) )
+				if (height > 0)
+				{
+					height = height - 0.1;
+					ftoa(height,heightConv,1); // convert height to char array (heightConv) with 1 decimal place
+					print_height_change(heightConv); // print conversion to LCD
+				}
+				break;
+			case CANGLE: // increment angle value (as long as >= MIN (0))
+				if(angle > 0)
+				{
+					angle = angle - 0.1;
+					ftoa(angle,angleConv,1); // convert angle to char array (angleConv) with 1 decimal place
+					print_angle_change(angleConv);	// print conversion to LCD
+				}
+				break;
+		}
+	}
+
+
+	if(PINC == BUTTON) // If button press triggered interrupt
 	{
 		switch(state)
 		{
 			case HEIGHT: // change to height change state
+				ftoa(height,heightConv,1);
+				print_height_change(heightConv);
 				state = CHEIGHT;
 				break;
 			case ANGLE: // change to angle change state
+				ftoa(angle,angleConv,1);
+				print_angle_change(angleConv);
 				state = CANGLE;
 				break;
 			case CHEIGHT: // confirm height change value
 				valueConfirm = 1; // set flag
+				print_height_angle(angleConv,heightConv, 1); // refresh screen with height selected 
 				state = HEIGHT; // exit from change function
 				break;
 			case CANGLE: // confirm angle change value
 				valueConfirm = 1; // set flag - might need to make unique flag
+				print_height_angle(angleConv,heightConv, 0); // refresh screen with angle selected
 				state = ANGLE;
 				break;
 		}
@@ -161,7 +203,8 @@ ISR(PCINT1_vect)
 
 /************************************************* NUMBER CHANING FUNCTIONS **********************************************************************************/
 
-void print_height_angle(char *angleConv, char *heightConv, int heightSelect) // possible way to fix based on state 0=height 1=angle
+// Function used to print either the height or angle selection ** THIS FUNCTION IS ONLY FOR CHANGING THE SELECTION **
+void print_height_angle(char *angleConv, char *heightConv, int heightSelect)
 {
 	lcd_gotoxy(1,1);
 	if (heightSelect == 1)
@@ -179,8 +222,7 @@ void print_height_angle(char *angleConv, char *heightConv, int heightSelect) // 
 	lcd_print(" ");
 }
 
-
-
+// Function used to print a change in the height value
 void print_height_change(char *conversion)
 {
 	//ensure height becomes unselected
@@ -194,6 +236,7 @@ void print_height_change(char *conversion)
 	lcd_print("]");
 }
 
+// Function used to print a change in the angle value
 void print_angle_change(char *conversion)
 {
 	lcd_gotoxy(1,1);
