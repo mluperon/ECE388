@@ -5,75 +5,78 @@
  *  Author: dylma
  */ 
 
-/*
-
-CODE TAKEN FROM:
-
-https://www.geeksforgeeks.org/convert-floating-point-number-string/
-
-*/
-
 #ifndef FLOATCONVERT_H_
 #define FLOATCONVERT_H_
-void reverse(char *str, int len)
+void ftoa(double n, char* res)
 {
-	int i=0, j=len-1, temp;
-	while (i<j)
+	char numbers[11] = "0123456789";
+	int power = 0;
+	int numConvert = 0;
+
+	if (n < 1)
+	power = 0;
+	else if (n < 10)
+	power = 1;
+	else
+	power = 2;
+
+	switch (power)
 	{
-		temp = str[i];
-		str[i] = str[j];
-		str[j] = temp;
-		i++; j--;
+		case 0:
+		numConvert = n * 10;
+		res[0] = '0';
+		res[1] = '0';
+		res[2] = '.';
+		res[3] = numbers[numConvert];
+		res[4] = '\0';
+		break;
+		case 1:
+// 		if (n > 9.7 && n < 9.8) // weird case for 9.8
+// 		{
+// 			res[0] = '0';
+// 			res[1] = '9';
+// 			res[2] = '.';
+// 			res[3] = '8';
+// 			res[4] = '\0';
+// 			break;
+// 		}
+// 		if (n > 9.8 && n < 9.9) // weird case for 9.9
+// 		{
+// 			res[0] = '0';
+// 			res[1] = '9';
+// 			res[2] = '.';
+// 			res[3] = '9';
+// 			res[4] = '\0';
+// 			break;
+// 		}
+// 		if (n > 9.3 && n < 9.4) // weird case for 9.4
+// 		{
+// 			res[0] = '0';
+// 			res[1] = '9';
+// 			res[2] = '.';
+// 			res[3] = '4';
+// 			res[4] = '\0';
+// 			break;
+// 		}
+		numConvert = floor(n);
+		res[0] = '0';
+		res[1] = numbers[numConvert];
+		res[2] = '.';
+		numConvert = (fmod(n, numConvert)) * 10;
+		res[3] = numbers[numConvert];
+		res[4] = '\0';
+		break;
+
+		case 2:
+		numConvert = floor(n) / 10;
+		res[0] = numbers[numConvert];
+		numConvert = fmod(floor(n), 10);
+		res[1] = numbers[numConvert];
+		res[2] = '.';
+		numConvert = fmod(n, floor(n)) * 10;
+		res[3] = numbers[numConvert];
+		res[4] = '\0';
+		break;
 	}
 }
-
-int intToStr(int x, char str[], int d)
-{
-	int i = 0;
-	while (x)
-	{
-		str[i++] = (x%10) + '0';
-		x = x/10;
-	}
-	
-	// If number of digits required is more, then
-	// add 0s at the beginning
-	while (i < d)
-	str[i++] = '0';
-	
-	reverse(str, i);
-	str[i] = '\0';
-	return i;
-}
-
-
-// Converts a floating point number to string.
-void ftoa(float n, char *res, int afterpoint)
-{
-	// Extract integer part
-	int ipart = (int)n;
-	
-	// Extract floating part
-	float fpart = n - (float)ipart;
-	
-	// convert integer part to string
-	int i = intToStr(ipart, res, 0);
-	
-	// check for display option after point
-	if (afterpoint != 0)
-	{
-		res[i] = '.';  // add dot
-		
-		// Get the value of fraction part upto given no.
-		// of points after dot. The third parameter is needed
-		// to handle cases like 233.007
-		fpart = fpart * pow(10, afterpoint);
-		
-		intToStr((int)fpart, res + i + 1, afterpoint);
-	}
-}
-
-
-
-
 #endif /* FLOATCONVERT_H_ */
