@@ -53,21 +53,21 @@ volatile int overflowCount = 0; // global variable used for tracking how many ti
 
 int main(void)
 {
+	PORTE &= ~(1<<3); // Ensure 12V is ON
+	DDRE &= ~(1<<3);  // Ensure 12V is OFF
+	
 	//********************************************** PIN CHANGE INTERRUPT SETUP **********************************************//
 	DDRC &= ~(_BV(2) | _BV(1) | _BV(4)); // sets PORTC 1, 2, and 4 to input (input from rotary encoder)
 										 // 1 = DT signal
 										 // 2 = CLK signal
 										 // 4 = SW signal (button press)
-										 
-	PCICR |= (1<<PCIE1); // Enable pin change interrupt on PORTC
-	PCMSK1 |= (1<<PCINT11) | (1<<PCINT9) | (1<<PCINT10); // Enable Pins 1,2, and 4 to trigger this interrupt
 	
 	
 	//********************************************** PWM SETUP **********************************************//
 	// Set up PWM on PortB(1)
 	DDRB |= (1<<1); // set PINB 1 to output
 	PORTB &= ~(1<<1); // Ensure PINB 1 is not outputting voltage
-	TCCR1A= (0b11 << COM1A0) | ( 0b00 << COM1B0) | (0b10 << WGM10); // set up PWM with prescalar
+	TCCR1A= (0b11 << COM1A0) | ( 0b00 << COM1B0) | (0b10 << WGM10); // set up PWM with pre-scalar
 	TCCR1B= (0b11 << WGM12) | (0b010<< CS10);
 	ICR1= 40000-1; // (20MS /8 PRESCALAR)
 	OCR1A=36000-1; // 1000->4000 0.5ms to 2ms *** adjust ***
@@ -79,9 +79,6 @@ int main(void)
 	TCNT3 = -15625; // One second timer value
 	
 	// These variables are Char arrays as the LCD cannot output int/float values, it must be sent as a string
-	
-	lcd_init(); // initialize the LCD according to Dr. Viall's 263 code
-	
 	angleConv[0]='0'; // v Set up height and angle to start at 00.0 value
 	angleConv[1]='0';
 	angleConv[2]='.';
@@ -91,16 +88,23 @@ int main(void)
 	heightConv[2]='.';
 	heightConv[3]='0';// ^
 	
-	// PRINT DEFAULT STATE
+	// Set up LCD and print starting message state 
+	lcd_init(); // initialize the LCD according to Dr. Viall's 263 code
 	lcd_gotoxy(1,1); // go to row 1 column 1 of LCD
-	lcd_print(HEIGHT_SELECT); // Print ->   [HEIGHT] ANGLE
+	lcd_print("Starting system"); // Print ->   [HEIGHT] ANGLE
 	lcd_gotoxy(1,2); // go to row 2 column 2 of LCD
-	lcd_print(DEFAULT_ANGLE); // Print -> 00.0 00.0
+	lcd_print("Please wait..."); // Print -> 00.0 00.0
+	
 	
 	sei(); // enable global interrupts
 	
 	// ***** SPEED CONTROLLER STARTUP ***** //
+	PORTE &= ~(1<<3); // TURN ON 12V SUPPLY
+	DDRE |= (1<<3);   // TURN ON 12V SUPPLY
 	
+	// ***** Enable User Control ***** //
+	PCICR |= (1<<PCIE1); // Enable pin change interrupt on PORTC
+	PCMSK1 |= (1<<PCINT11) | (1<<PCINT9) | (1<<PCINT10); // Enable Pins 1,2, and 4 to trigger this interrupt
 	
 	
 	// ***** MAIN LOOP ***** //
