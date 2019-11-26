@@ -25,6 +25,7 @@ Here's a general list of what needs to be accomplished in the coming days:
     - [ ] Have peripheral go to corresponding port
     - [X] Ensure LCD can properly be navigated with rotary encoder
     - [X] Ensure values can be changed ONLY within their limits
+  - [ ] Get rid of the warnings from code to date
   - [ ] **CREATE TEST PLAN**
     - We might need to plan out a day for this one, it will take a while
     - Do we need code tests?
