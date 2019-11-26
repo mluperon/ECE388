@@ -1,0 +1,45 @@
+void itoa(int n, char* convert)
+{
+	int power = -1;
+	char numbers[11] = "0123456789";
+
+	// get power of number passed
+	if (n < 10) // .1->.9
+		power = 0;
+	else if (n < 100) // 1->9
+		power = 1;
+	else
+		power = 2;
+
+
+	switch(power)
+	{
+	case 0: // tenth decimal place
+		convert[0] = '0';
+		convert[1] = '0';
+		convert[2] = '.';
+		convert[3] = numbers[n];
+		convert[4] = '\0';
+
+		break;
+	
+	
+	case 1:
+		convert[0] = '0';
+		convert[1] = numbers[n/10];
+		convert[2] = '.';
+		convert[3] = numbers[n % 10];
+		numbers[4] = '\0';
+
+		break;
+	
+	
+	case 2:
+		convert[0] = numbers[n / 100];
+		convert[1] = numbers[(n / 10) % 10];
+		convert[2] = '.';
+		convert[3] = numbers[(n % 100) % 10];
+		convert[4] = '\0';
+		break;
+	}
+}
