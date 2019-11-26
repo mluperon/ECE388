@@ -21,8 +21,8 @@
 #define ANGLE_SELECT " HEIGHT  [ANGLE]"
 #define NO_HS_SELECT " HEIGHT   ANGLE "
 #define DEFAULT_ANGLE " 00.0     00.0"
-#define MAX_HEIGHT 15 // max height value 15ft
-#define MAX_ANGLE 90 // max angle value 90 degrees
+#define MAX_HEIGHT 150 // max height value 1.5ft
+#define MAX_ANGLE 900 // max angle value 90 degrees
 #define RIGHT 123 // PINC value for turning right
 #define LEFT 125 // PINC value for turning left
 #define BUTTON 111 // PINC value for pushing button
@@ -43,16 +43,17 @@ typedef enum __attribute__ ((__packed__)) {HEIGHT, ANGLE, CHEIGHT, CANGLE} State
 	//
 	
 volatile int state = HEIGHT; // starts in height selection by default
-volatile double height = 0.00; // global variable for height
-volatile double angle = 00.0; // global variable for angle
+volatile int height = 0; // global variable for height
+volatile int angle = 0; // global variable for angle
 volatile int valueConfirm = 0; // flag signifying a new value for EITHER height or angle has been made. Will be used in PID loop to signal when to adjust fan speeds
 volatile char heightConv[16] = ""; // global character array for storing height to be output to LCD
 volatile char angleConv[16] = ""; // global character array for storing angle to be output to LCD
 
 int main(void)
 {
-	int dummy=0;
+
 	// arbitrary ports right now
+
 	DDRC &= ~(_BV(2) | _BV(1) | _BV(4)); // sets PORTC 1, 2, and 4 to input (input from rotary encoder)
 										 // 1 = DT signal
 										 // 2 = CLK signal
@@ -84,12 +85,12 @@ int main(void)
 	// ***** MAIN LOOP *****//
 	while(1)
 	{
-		dummy=0;
-		dummy=0;	
-		//This is where the PID loop will be located
-		//After the interrupt the PID will account for change
-		//Must check to make sure value was confirmed before accounting for change in PID loop
-		//This is why I have the valueConfirm variable
+
+	//This is where the PID loop will be located
+	//After the interrupt the PID will account for change
+	//Must check to make sure value was confirmed before accounting for change in PID loop
+	//This is why I have the valueConfirm variable
+
 	}
 	
 	
@@ -105,11 +106,14 @@ int main(void)
 //		- Confirms height / angle adjustment
 //		- Selects angle / height and moves user to adjust height / angle
 
-int tmp=0;
+float tmp=0;
 ISR(PCINT1_vect) 
 {
 	_delay_ms(5);
 	tmp=PINC;
+// 	ftoa(tmp,heightConv);
+// 	print_height_change(heightConv);
+	
 	if(PINC == RIGHT) //if right turn triggered interrupt
 	{
 		switch(state)
@@ -124,7 +128,7 @@ ISR(PCINT1_vect)
 			case CHEIGHT: // increment height value (as long as < MAX (?))
 				if (height < MAX_HEIGHT) // total guess right now
 				{
-					height=height + 0.1; //increment height by tenth
+					height=height + 1; //increment height by tenth
 					ftoa(height,heightConv); // convert height to char array (heightConv) with 1 decimal place
 					print_height_change(heightConv); // print conversion to LCD
 				}
@@ -132,7 +136,7 @@ ISR(PCINT1_vect)
 			case CANGLE: // increment angle value (as long as <= MAX (90))
 				if (angle < MAX_ANGLE)
 				{
-					angle=angle + 0.1;
+					angle=angle + 1;
 					ftoa(angle,angleConv); // convert angle to char array (angleConv) with 1 decimal place
 					print_angle_change(angleConv);	// print conversion to LCD
 				}
@@ -155,7 +159,7 @@ ISR(PCINT1_vect)
 			case CHEIGHT: // decrement height value (as long as >= MIN (0) )
 				if (height > 0)
 				{
-					height = height - 0.1;
+					height = height - 1;
 					ftoa(height,heightConv); // convert height to char array (heightConv) with 1 decimal place
 					print_height_change(heightConv); // print conversion to LCD
 				}
@@ -163,7 +167,7 @@ ISR(PCINT1_vect)
 			case CANGLE: // increment angle value (as long as >= MIN (0))
 				if(angle > 0)
 				{
-					angle = angle - 0.1;
+					angle = angle - 1;
 					ftoa(angle,angleConv); // convert angle to char array (angleConv) with 1 decimal place
 					print_angle_change(angleConv);	// print conversion to LCD
 				}
@@ -262,3 +266,30 @@ void print_angle_change(char *conversion)
 	
 }
 
+
+/************************************************* REQUIREMENT TEST FUNCTIONS **********************************************************************************/
+
+// This function will loop through each value possible for the angle and display it on the LCD display. 5 numbers will be displayed each second
+void test_angles()
+{
+	while (angle <= MAX_ANGLE) 
+	{
+		ftoa(angle,angleConv);
+		print_angle_change(angleConv);
+		angle++;
+		_delay_ms(200);
+	}
+}
+
+
+// This function will loop through each value possible for the height and display it on the LCD display. 5 numbers will be displayed each second
+void test_heights()
+{
+	while (angle <= MAX_HEIGHT)
+	{
+		ftoa(height,heightConv);
+		print_angle_change(heightConv);
+		height++;
+		_delay_ms(200);
+	}
+}
