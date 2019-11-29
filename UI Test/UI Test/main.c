@@ -45,6 +45,7 @@ typedef enum __attribute__ ((__packed__)) {HEIGHT, ANGLE, CHEIGHT, CANGLE} State
 volatile int state = HEIGHT; // starts in height selection by default
 volatile int height = 0; // global variable for height
 volatile int angle = 0; // global variable for angle
+volatile int valueChange = 1; // increment / decrement height and angle by this value
 volatile int valueConfirm = 0; // flag signifying a new value for EITHER height or angle has been made. Will be used in PID loop to signal when to adjust fan speeds
 volatile char heightConv[16] = ""; // global character array for storing height to be output to LCD
 volatile char angleConv[16] = ""; // global character array for storing angle to be output to LCD
@@ -122,21 +123,28 @@ ISR(PCINT1_vect)
 				print_height_angle(angleConv,heightConv,0);
 				state = ANGLE;
 				break;
-			case ANGLE: // do nothing OR change to height state?
-				// do nothing as of rn fuck it
+			case ANGLE: // Change increment/decrement value to 10
+				valueChange = 10;
+				cli();
+				lcd_gotoxy(1,1);
+				lcd_print("Order +-1       ");
+				_delay_ms(1000);
+				lcd_gotoxy(1,1);
+				lcd_print(ANGLE_SELECT);
+				sei();
 				break;
 			case CHEIGHT: // increment height value (as long as < MAX (?))
-				if (height < MAX_HEIGHT) // total guess right now
+				if ((height+valueChange) <= MAX_HEIGHT) // total guess right now
 				{
-					height=height + 1; //increment height by tenth
+					height=height + valueChange; //increment height by tenth
 					ftoa(height,heightConv); // convert height to char array (heightConv) with 1 decimal place
 					print_height_change(heightConv); // print conversion to LCD
 				}
 				break;	
 			case CANGLE: // increment angle value (as long as <= MAX (90))
-				if (angle < MAX_ANGLE)
+				if ((angle+valueChange) <= MAX_ANGLE)
 				{
-					angle=angle + 1;
+					angle=angle + valueChange;
 					ftoa(angle,angleConv); // convert angle to char array (angleConv) with 1 decimal place
 					print_angle_change(angleConv);	// print conversion to LCD
 				}
@@ -149,25 +157,32 @@ ISR(PCINT1_vect)
 	{
 		switch(state)
 		{
-			case HEIGHT: // do nothing OR change to angle state?
-				// again we aren't doing anything (rn) for this so fuck it
+			case HEIGHT: // Change increment/decrement value to 1
+				valueChange = 1;
+				cli();
+				lcd_gotoxy(1,1);
+				lcd_print("Order +-.1     ");
+				_delay_ms(1000);
+				lcd_gotoxy(1,1);
+				lcd_print(HEIGHT_SELECT);
+				sei();
 				break;
 			case ANGLE: // change to height state
 				print_height_angle(angleConv,heightConv, 1);
 				state = HEIGHT;
 				break;
 			case CHEIGHT: // decrement height value (as long as >= MIN (0) )
-				if (height > 0)
+				if ((height-valueChange) >= 0)
 				{
-					height = height - 1;
+					height = height - valueChange;
 					ftoa(height,heightConv); // convert height to char array (heightConv) with 1 decimal place
 					print_height_change(heightConv); // print conversion to LCD
 				}
 				break;
 			case CANGLE: // increment angle value (as long as >= MIN (0))
-				if(angle > 0)
+				if((angle-valueChange) >= 0)
 				{
-					angle = angle - 1;
+					angle = angle - valueChange;
 					ftoa(angle,angleConv); // convert angle to char array (angleConv) with 1 decimal place
 					print_angle_change(angleConv);	// print conversion to LCD
 				}
