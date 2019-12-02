@@ -26,9 +26,10 @@ Here's a general list of what needs to be accomplished in the coming days:
     - [X] Ensure LCD can properly be navigated with rotary encoder
     - [X] Ensure values can be changed ONLY within their limits
   - [ ] Get rid of the warnings from code to date
-  - [ ] **CREATE TEST PLAN**
+  - [ ] **FINISH AND EXECUTE TEST PLAN**
     - We might need to plan out a day for this one, it will take a while
     - Do we need code tests?
+  - [ ] Create PID Loop 
 
 This is just a rough draft I thought up, please feel free to add anything I forgot.
 -Dylan
