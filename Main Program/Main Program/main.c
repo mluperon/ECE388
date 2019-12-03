@@ -9,12 +9,11 @@
  */ 
 
 #define F_CPU 16000000
-#include <avr/delay.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <avr/io.h>
 #include <avr/interrupt.h>
-#include <avr/delay.h>
+#include <util/delay.h>
 #include "lcd_functions.h" // Dr. Viall's code for using the LCD
 #include "floatConvert.h" // Code to convert a float into a character array
 
@@ -27,7 +26,14 @@
 #define RIGHT 123 // PINC value for turning right
 #define LEFT 125 // PINC value for turning left
 #define BUTTON 111 // PINC value for pushing button
-#define _BV(n) (1 << n)
+//#define _BV(n) (1 << n)
+
+void print_angle_change(char *);
+void print_height_change(char *);
+void print_height_angle(char *,  char *, int);
+void test_angles();
+void test_heights();
+void peripheralSetup();
 
 typedef enum __attribute__ ((__packed__)) {HEIGHT, ANGLE, CHEIGHT, CANGLE} State; // used to navigate display
 	//HEIGHT =  [HEIGHT] ANGLE
@@ -49,37 +55,12 @@ volatile int angle = 0; // global variable for angle
 volatile int valueChange = 1;
 volatile int valueConfirm = 0; // flag signifying a new value for EITHER height or angle has been made. Will be used in PID loop to signal when to adjust fan speeds
 volatile int setupFlag = 0;
-volatile char heightConv[16] = ""; // global character array for storing height to be output to LCD
-volatile char angleConv[16] = ""; // global character array for storing angle to be output to LCD
+char heightConv[16] = ""; // global character array for storing height to be output to LCD
+char angleConv[16] = ""; // global character array for storing angle to be output to LCD
 volatile int overflowCount = 0; // global variable used for tracking how many times the timer overflows (each overflow is equivalent to one second)
 
 int main(void)
 {
-	PORTE &= ~(1<<3); // Ensure 12V is ON
-	DDRE &= ~(1<<3);  // Ensure 12V is OFF
-	
-	//********************************************** PIN CHANGE INTERRUPT SETUP **********************************************//
-	DDRC &= ~(_BV(2) | _BV(1) | _BV(4)); // sets PORTC 1, 2, and 4 to input (input from rotary encoder)
-										 // 1 = DT signal
-										 // 2 = CLK signal
-										 // 4 = SW signal (button press)
-	
-	
-	//********************************************** PWM SETUP **********************************************//
-	// Set up PWM on PortB(1)
-	DDRB |= (1<<1); // set PINB 1 to output
-	PORTB &= ~(1<<1); // Ensure PINB 1 is not outputting voltage
-	TCCR1A= (0b11 << COM1A0) | ( 0b00 << COM1B0) | (0b10 << WGM10); // set up PWM with pre-scalar
-	TCCR1B= (0b11 << WGM12) | (0b010<< CS10);
-	ICR1= 40000-1; // (20MS /8 PRESCALAR)
-	OCR1A=36000-1; // 1000->4000 0.5ms to 2ms *** adjust ***
-	
-	// Set up 5 second timer for startup
-	TCCR3A = 0; //(0b00 << COM3A0) | (0b00 << COM3B0)
-	TCCR3B = (0 << ICNC3) | (0 << ICES3) | (0b00 << WGM32) | (0b101 << CS30);
-	TIMSK3 = (0 << TOIE3); // Ensure timer 3 is disabled
-	TCNT3 = -15625; // One second timer value
-	
 	// These variables are Char arrays as the LCD cannot output int/float values, it must be sent as a string
 	angleConv[0]='0'; // v Set up height and angle to start at 00.0 value
 	angleConv[1]='0';
@@ -90,28 +71,7 @@ int main(void)
 	heightConv[2]='.';
 	heightConv[3]='0';// ^
 	
-	// Set up LCD and print starting message state 
-	lcd_init(); // initialize the LCD according to Dr. Viall's 263 code
-	lcd_gotoxy(1,1); // go to row 1 column 1 of LCD
-	lcd_print("Starting system"); // Print ->   [HEIGHT] ANGLE
-	lcd_gotoxy(1,2); // go to row 2 column 2 of LCD
-	lcd_print("Please wait..."); // Print -> 00.0 00.0
-	
-	
-	sei(); // enable global interrupts
-	
-	// ***** SPEED CONTROLLER STARTUP ***** //
-	TIMSK3 = (1 << TOIE3); // Enable PWM timer for startup
-	PORTE &= ~(1<<3); // TURN ON 12V SUPPLY
-	DDRE |= (1<<3);   // TURN ON 12V SUPPLY
-	
-	PORTB |= (1<<1); // Begin outputting 2ms pulse
-	// Timer 3 will auto adjust pulse length after this routine
-	
-	while(setupFlag != 1)
-	{
-		// Wait for setup to finish
-	}
+	peripheralSetup();
 	
 	//SETUP COMPLETE
 	lcd_gotoxy(1,1); // go to row 1 column 1 of LCD
@@ -126,6 +86,10 @@ int main(void)
 	PCICR |= (1<<PCIE1); // Enable pin change interrupt on PORTC
 	PCMSK1 |= (1<<PCINT11) | (1<<PCINT9) | (1<<PCINT10); // Enable Pins 1,2, and 4 to trigger this interrupt
 	
+	lcd_gotoxy(1,1); // go to row 1 column 1 of LCD
+	lcd_print(HEIGHT_SELECT); // Print ->   [HEIGHT] ANGLE
+	lcd_gotoxy(1,2); // go to row 2 column 2 of LCD
+	lcd_print(DEFAULT_ANGLE); // Print -> 00.0 00.0
 	
 	// ***** MAIN LOOP ***** //
 	while(1)
@@ -149,8 +113,6 @@ int main(void)
 //		- Confirms height / angle adjustment
 //		- Selects angle / height and moves user to adjust height / angle
 
-ISR(PCINT1_vect) 
-{
 ISR(PCINT1_vect)
 {
 	_delay_ms(5);
@@ -269,8 +231,6 @@ ISR(PCINT1_vect)
 }
 
 
-}
-
 // Timer used to track seconds for startup routine of speed controller
 ISR (TIMER3_OVF_vect)
 {
@@ -285,7 +245,56 @@ ISR (TIMER3_OVF_vect)
 	}
 }
 
-
+void peripheralSetup()
+{
+	PORTE &= ~(1<<3); // Ensure 12V is OFF
+	DDRE &= ~(1<<3);  // Ensure 12V is OFF
+	
+	//********************************************** PIN CHANGE INTERRUPT SETUP **********************************************//
+	DDRC &= ~(_BV(2) | _BV(1) | _BV(4)); // sets PORTC 1, 2, and 4 to input (input from rotary encoder)
+	// 1 = DT signal
+	// 2 = CLK signal
+	// 4 = SW signal (button press)
+	
+	
+	//********************************************** PWM SETUP **********************************************//
+	// Set up PWM on PortB(1)
+	DDRB |= (1<<1); // set PINB 1 to output
+	PORTB &= ~(1<<1); // Ensure PINB 1 is not outputting voltage
+	TCCR1A= (0b11 << COM1A0) | ( 0b00 << COM1B0) | (0b10 << WGM10); // set up PWM with pre-scalar
+	TCCR1B= (0b11 << WGM12) | (0b010<< CS10);
+	ICR1= 40000-1; // (20MS /8 PRESCALAR)
+	OCR1A=36000-1; // 1000->4000 0.5ms to 2ms *** adjust ***
+	
+	// Set up 5 second timer for startup
+	TCCR3A = 0; //(0b00 << COM3A0) | (0b00 << COM3B0)
+	TCCR3B = (0 << ICNC3) | (0 << ICES3) | (0b00 << WGM32) | (0b101 << CS30);
+	TIMSK3 = (0 << TOIE3); // Ensure timer 3 is disabled
+	TCNT3 = -15625; // One second timer value
+	
+	// Set up LCD and print starting message state
+	lcd_init(); // initialize the LCD according to Dr. Viall's 263 code
+	lcd_gotoxy(1,1); // go to row 1 column 1 of LCD
+	lcd_print("Starting system"); // Print ->   [HEIGHT] ANGLE
+	lcd_gotoxy(1,2); // go to row 2 column 2 of LCD
+	lcd_print("Please wait..."); // Print -> 00.0 00.0
+	
+	
+	sei(); // enable global interrupts
+	
+	// ***** SPEED CONTROLLER STARTUP ***** //
+	TIMSK3 = (1 << TOIE3); // Enable PWM timer for startup
+	PORTE &= ~(1<<3); // TURN ON 12V SUPPLY
+	DDRE |= (1<<3);   // TURN ON 12V SUPPLY
+	
+	PORTB |= (1<<1); // Begin outputting 2ms pulse
+	// Timer 3 will auto adjust pulse length after this routine
+	
+	while(setupFlag != 1)
+	{
+		// Wait for setup to finish
+	}
+}
 
 /************************************************* NUMBER CHANING FUNCTIONS **********************************************************************************/
 
@@ -365,3 +374,4 @@ void test_heights()
 		_delay_ms(200);
 	}
 }
+
