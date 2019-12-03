@@ -22,11 +22,11 @@
 #define ANGLE_SELECT " HEIGHT  [ANGLE]"
 #define NO_HS_SELECT " HEIGHT   ANGLE "
 #define DEFAULT_ANGLE " 00.0     00.0"
-#define MAX_HEIGHT 15 // max height value 15ft
-#define MAX_ANGLE 90 // max angle value 90 degrees
-#define RIGHT 122 // PINC value for turning right
-#define LEFT 124 // PINC value for turning left
-#define BUTTON 118 // PINC value for pushing button
+#define MAX_HEIGHT 150 // max height value 1.5ft
+#define MAX_ANGLE 900 // max angle value 90 degrees
+#define RIGHT 123 // PINC value for turning right
+#define LEFT 125 // PINC value for turning left
+#define BUTTON 111 // PINC value for pushing button
 #define _BV(n) (1 << n)
 
 typedef enum __attribute__ ((__packed__)) {HEIGHT, ANGLE, CHEIGHT, CANGLE} State; // used to navigate display
@@ -44,9 +44,11 @@ typedef enum __attribute__ ((__packed__)) {HEIGHT, ANGLE, CHEIGHT, CANGLE} State
 	//
 	
 volatile int state = HEIGHT; // starts in height selection by default
-volatile float height = 0.00; // global variable for height
-volatile float angle = 00.0; // global variable for angle
+volatile int height = 0; // global variable for height
+volatile int angle = 0; // global variable for angle
+volatile int valueChange = 1;
 volatile int valueConfirm = 0; // flag signifying a new value for EITHER height or angle has been made. Will be used in PID loop to signal when to adjust fan speeds
+volatile int setupFlag = 0;
 volatile char heightConv[16] = ""; // global character array for storing height to be output to LCD
 volatile char angleConv[16] = ""; // global character array for storing angle to be output to LCD
 volatile int overflowCount = 0; // global variable used for tracking how many times the timer overflows (each overflow is equivalent to one second)
@@ -75,7 +77,7 @@ int main(void)
 	// Set up 5 second timer for startup
 	TCCR3A = 0; //(0b00 << COM3A0) | (0b00 << COM3B0)
 	TCCR3B = (0 << ICNC3) | (0 << ICES3) | (0b00 << WGM32) | (0b101 << CS30);
-	TIMSK3 = (1 << TOIE3);
+	TIMSK3 = (0 << TOIE3); // Ensure timer 3 is disabled
 	TCNT3 = -15625; // One second timer value
 	
 	// These variables are Char arrays as the LCD cannot output int/float values, it must be sent as a string
@@ -99,10 +101,28 @@ int main(void)
 	sei(); // enable global interrupts
 	
 	// ***** SPEED CONTROLLER STARTUP ***** //
+	TIMSK3 = (1 << TOIE3); // Enable PWM timer for startup
 	PORTE &= ~(1<<3); // TURN ON 12V SUPPLY
 	DDRE |= (1<<3);   // TURN ON 12V SUPPLY
 	
-	// ***** Enable User Control ***** //
+	PORTB |= (1<<1); // Begin outputting 2ms pulse
+	// Timer 3 will auto adjust pulse length after this routine
+	
+	while(setupFlag != 1)
+	{
+		// Wait for setup to finish
+	}
+	
+	//SETUP COMPLETE
+	lcd_gotoxy(1,1); // go to row 1 column 1 of LCD
+	lcd_print("System start    "); // Print ->   [HEIGHT] ANGLE
+	lcd_gotoxy(1,2); // go to row 2 column 2 of LCD
+	lcd_print("completed!      "); // Print -> 00.0 00.0
+	_delay_ms(1000);
+	lcd_print("Enabling UI...  ");
+	lcd_print("Enjoy! :)       ");
+	
+	// ***** Enable User Control ***** //		
 	PCICR |= (1<<PCIE1); // Enable pin change interrupt on PORTC
 	PCMSK1 |= (1<<PCINT11) | (1<<PCINT9) | (1<<PCINT10); // Enable Pins 1,2, and 4 to trigger this interrupt
 	
@@ -131,31 +151,43 @@ int main(void)
 
 ISR(PCINT1_vect) 
 {
-
+ISR(PCINT1_vect)
+{
+	_delay_ms(5);
+	// 	ftoa(tmp,heightConv);
+	// 	print_height_change(heightConv);
+	
 	if(PINC == RIGHT) //if right turn triggered interrupt
 	{
 		switch(state)
 		{
 			case HEIGHT: // change to angle state
-				lcd_print(ANGLE_SELECT);
+				print_height_angle(angleConv,heightConv,0);
 				state = ANGLE;
 				break;
-			case ANGLE: // do nothing OR change to height state?
-				// do nothing as of rn fuck it
+			case ANGLE: // Change increment/decrement value to 10
+				valueChange = 10;
+				cli();
+				lcd_gotoxy(1,1);
+				lcd_print("Order +-1       ");
+				_delay_ms(1000);
+				lcd_gotoxy(1,1);
+				lcd_print(ANGLE_SELECT);
+				sei();
 				break;
 			case CHEIGHT: // increment height value (as long as < MAX (?))
-				if (height < MAX_HEIGHT) // total guess right now
+				if ((height+valueChange) <= MAX_HEIGHT) // total guess right now
 				{
-					height=height + 0.1; //increment height by tenth
-					ftoa(height,heightConv,1); // convert height to char array (heightConv) with 1 decimal place
+					height=height + valueChange; //increment height by tenth
+					ftoa(height,heightConv); // convert height to char array (heightConv) with 1 decimal place
 					print_height_change(heightConv); // print conversion to LCD
 				}
-				break;	
+				break;
 			case CANGLE: // increment angle value (as long as <= MAX (90))
-				if (angle < MAX_ANGLE)
+				if ((angle+valueChange) <= MAX_ANGLE)
 				{
-					angle=angle + 0.1;
-					ftoa(angle,angleConv,1); // convert angle to char array (angleConv) with 1 decimal place
+					angle=angle + valueChange;
+					ftoa(angle,angleConv); // convert angle to char array (angleConv) with 1 decimal place
 					print_angle_change(angleConv);	// print conversion to LCD
 				}
 				break;
@@ -167,26 +199,33 @@ ISR(PCINT1_vect)
 	{
 		switch(state)
 		{
-			case HEIGHT: // do nothing OR change to angle state?
-				// again we aren't doing anything (rn) for this so fuck it
+			case HEIGHT: // Change increment/decrement value to 1
+				valueChange = 1;
+				cli();
+				lcd_gotoxy(1,1);
+				lcd_print("Order +-.1     ");
+				_delay_ms(1000);
+				lcd_gotoxy(1,1);
+				lcd_print(HEIGHT_SELECT);
+				sei();
 				break;
 			case ANGLE: // change to height state
-				print_height_angle(angleConv,heightConv, 0);
+				print_height_angle(angleConv,heightConv, 1);
 				state = HEIGHT;
 				break;
 			case CHEIGHT: // decrement height value (as long as >= MIN (0) )
-				if (height > 0)
+				if ((height-valueChange) >= 0)
 				{
-					height = height - 0.1;
-					ftoa(height,heightConv,1); // convert height to char array (heightConv) with 1 decimal place
+					height = height - valueChange;
+					ftoa(height,heightConv); // convert height to char array (heightConv) with 1 decimal place
 					print_height_change(heightConv); // print conversion to LCD
 				}
 				break;
 			case CANGLE: // increment angle value (as long as >= MIN (0))
-				if(angle > 0)
+				if((angle-valueChange) >= 0)
 				{
-					angle = angle - 0.1;
-					ftoa(angle,angleConv,1); // convert angle to char array (angleConv) with 1 decimal place
+					angle = angle - valueChange;
+					ftoa(angle,angleConv); // convert angle to char array (angleConv) with 1 decimal place
 					print_angle_change(angleConv);	// print conversion to LCD
 				}
 				break;
@@ -199,18 +238,18 @@ ISR(PCINT1_vect)
 		switch(state)
 		{
 			case HEIGHT: // change to height change state
-				ftoa(height,heightConv,1);
+				ftoa(height,heightConv);
 				print_height_change(heightConv);
 				state = CHEIGHT;
 				break;
 			case ANGLE: // change to angle change state
-				ftoa(angle,angleConv,1);
+				ftoa(angle,angleConv);
 				print_angle_change(angleConv);
 				state = CANGLE;
 				break;
 			case CHEIGHT: // confirm height change value
 				valueConfirm = 1; // set flag
-				print_height_angle(angleConv,heightConv, 1); // refresh screen with height selected 
+				print_height_angle(angleConv,heightConv, 1); // refresh screen with height selected
 				state = HEIGHT; // exit from change function
 				break;
 			case CANGLE: // confirm angle change value
@@ -220,6 +259,15 @@ ISR(PCINT1_vect)
 				break;
 		}
 	}
+	
+	while(PINC != 127)
+	{
+		// Wait for PINC to return to default state 
+		// i.e. no pulse being sent from rotary encoder	
+	}
+
+}
+
 
 }
 
@@ -233,6 +281,7 @@ ISR (TIMER3_OVF_vect)
 		OCR1A=38000-1;	// adjust pulse width of waveform being generated from 2ms to 1ms
 		TCNT3 = 0; // set counter to 0
 		TIMSK3 = (0 << TOIE3); // disable timer
+		setupFlag = 1;
 	}
 }
 
@@ -245,17 +294,19 @@ void print_height_angle(char *angleConv, char *heightConv, int heightSelect)
 {
 	lcd_gotoxy(1,1);
 	if (heightSelect == 1)
-		lcd_print(HEIGHT_SELECT);
-	else 
-		lcd_print(ANGLE_SELECT);
+	lcd_print(HEIGHT_SELECT);
+	else
+	lcd_print(ANGLE_SELECT);
 	// un-select bottom row
 	lcd_gotoxy(1,2);
 	lcd_print(" ");
 	lcd_print(heightConv);
+	lcd_gotoxy(6,2);
 	lcd_print(" ");
 	lcd_gotoxy(10,2);
 	lcd_print(" ");
 	lcd_print(angleConv);
+	lcd_gotoxy(15,2);
 	lcd_print(" ");
 }
 
@@ -287,3 +338,30 @@ void print_angle_change(char *conversion)
 	
 }
 
+
+/************************************************* REQUIREMENT TEST FUNCTIONS **********************************************************************************/
+
+// This function will loop through each value possible for the angle and display it on the LCD display. 5 numbers will be displayed each second
+void test_angles()
+{
+	while (angle <= MAX_ANGLE)
+	{
+		ftoa(angle,angleConv);
+		print_angle_change(angleConv);
+		angle++;
+		_delay_ms(200);
+	}
+}
+
+
+// This function will loop through each value possible for the height and display it on the LCD display. 5 numbers will be displayed each second
+void test_heights()
+{
+	while (angle <= MAX_HEIGHT)
+	{
+		ftoa(height,heightConv);
+		print_angle_change(heightConv);
+		height++;
+		_delay_ms(200);
+	}
+}

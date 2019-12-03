@@ -45,7 +45,7 @@ int main(void)
 	// SELF_TEST D7 = 0, no self-test
 	SPDR0 = 0b00101001;
 	SPI_wait();
-	_delay_ms(1);
+	_delay_ms(1); // Wait to signify new signal
 	SPDR0 = 0b1111000; // set multiple byte mode to 1 and address to 0x38
 	SPI_wait();
 	
@@ -54,7 +54,7 @@ int main(void)
 	// Samples = 0, bypass everything
 	SPDR0 = 0b00000000;
 	SPI_wait();
-	_delay_ms(1);
+	_delay_ms(1); // Wait to signify new signal
 
 	
 	/* Replace with your application code */
