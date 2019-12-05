@@ -86,7 +86,7 @@ int main(void)
 	
 	// ***** Enable User Control ***** //		
 	PCICR |= (1<<PCIE1); // Enable pin change interrupt on PORTC
-	PCMSK1 |= (1<<PCINT11) | (1<<PCINT9) | (1<<PCINT10); // Enable Pins 1,2, and 4 to trigger this interrupt
+	PCMSK1 |= (1<<PCINT12) | (1<<PCINT9) | (1<<PCINT10); // Enable Pins 1,2, and 4 to trigger this interrupt
 	
 	lcd_gotoxy(1,1); // go to row 1 column 1 of LCD
 	lcd_print(HEIGHT_SELECT); // Print ->   [HEIGHT] ANGLE

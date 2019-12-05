@@ -790,11 +790,11 @@ int main(void)
      4b2:	80 81       	ld	r24, Z
      4b4:	82 60       	ori	r24, 0x02	; 2
      4b6:	80 83       	st	Z, r24
-	PCMSK1 |= (1<<PCINT11) | (1<<PCINT9) | (1<<PCINT10); // Enable Pins 1,2, and 4 to trigger this interrupt
+	PCMSK1 |= (1<<PCINT12) | (1<<PCINT9) | (1<<PCINT10); // Enable Pins 1,2, and 4 to trigger this interrupt
      4b8:	ec e6       	ldi	r30, 0x6C	; 108
      4ba:	f0 e0       	ldi	r31, 0x00	; 0
      4bc:	80 81       	ld	r24, Z
-     4be:	8e 60       	ori	r24, 0x0E	; 14
+     4be:	86 61       	ori	r24, 0x16	; 22
      4c0:	80 83       	st	Z, r24
 	
 	lcd_gotoxy(1,1); // go to row 1 column 1 of LCD
