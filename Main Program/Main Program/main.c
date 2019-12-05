@@ -236,7 +236,7 @@ ISR (TIMER3_OVF_vect)
 {
 	TCNT3 = -15625; // reset the 1sec timer value 
 	overflowCount++;
-	if (overflowCount == 5) // wait 5 seconds
+	if (overflowCount == 4) // wait 4 seconds
 	{
 		OCR1A=38000-1;	// adjust pulse width of waveform being generated from 2ms to 1ms
 		TCNT3 = 0; // set counter to 0
@@ -244,6 +244,8 @@ ISR (TIMER3_OVF_vect)
 		setupFlag = 1;
 	}
 }
+
+/************************************************* STARTUP ROUTINE **********************************************************************************/
 
 void peripheralSetup()
 {
@@ -266,7 +268,7 @@ void peripheralSetup()
 	ICR1= 40000-1; // (20MS /8 PRESCALAR)
 	OCR1A=36000-1; // 1000->4000 0.5ms to 2ms *** adjust ***
 	
-	// Set up 5 second timer for startup
+	// Set up 4 second timer for startup
 	TCCR3A = 0; //(0b00 << COM3A0) | (0b00 << COM3B0)
 	TCCR3B = (0 << ICNC3) | (0 << ICES3) | (0b00 << WGM32) | (0b101 << CS30);
 	TIMSK3 = (0 << TOIE3); // Ensure timer 3 is disabled
@@ -284,10 +286,11 @@ void peripheralSetup()
 	
 	// ***** SPEED CONTROLLER STARTUP ***** //
 	TIMSK3 = (1 << TOIE3); // Enable PWM timer for startup
+	PORTB |= (1<<1); // Begin outputting 2ms pulse
+	_delay_ms(1);
 	PORTE &= ~(1<<3); // TURN ON 12V SUPPLY
 	DDRE |= (1<<3);   // TURN ON 12V SUPPLY
 	
-	PORTB |= (1<<1); // Begin outputting 2ms pulse
 	// Timer 3 will auto adjust pulse length after this routine
 	
 	while(setupFlag != 1)

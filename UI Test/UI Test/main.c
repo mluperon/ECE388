@@ -9,11 +9,12 @@
  */ 
 
 #define F_CPU 16000000
-#include <avr/delay.h>
+#include <util/delay.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <math.h>
 #include "lcd_functions.h" // Dr. Viall's code for using the LCD
 #include "floatConvert.h" // Code to convert a float into a character array
 
@@ -21,12 +22,11 @@
 #define ANGLE_SELECT " HEIGHT  [ANGLE]"
 #define NO_HS_SELECT " HEIGHT   ANGLE "
 #define DEFAULT_ANGLE " 00.0     00.0"
-#define MAX_HEIGHT 150 // max height value 1.5ft
+#define MAX_HEIGHT 150 // max height value 15in
 #define MAX_ANGLE 900 // max angle value 90 degrees
 #define RIGHT 123 // PINC value for turning right
 #define LEFT 125 // PINC value for turning left
 #define BUTTON 111 // PINC value for pushing button
-#define _BV(n) (1 << n)
 
 typedef enum __attribute__ ((__packed__)) {HEIGHT, ANGLE, CHEIGHT, CANGLE} State; // used to navigate display
 	//HEIGHT =  [HEIGHT] ANGLE
@@ -45,10 +45,18 @@ typedef enum __attribute__ ((__packed__)) {HEIGHT, ANGLE, CHEIGHT, CANGLE} State
 volatile int state = HEIGHT; // starts in height selection by default
 volatile int height = 0; // global variable for height
 volatile int angle = 0; // global variable for angle
+volatile double dAngle = 0.0;
+volatile double dHeight = 0.0;
 volatile int valueChange = 1; // increment / decrement height and angle by this value
 volatile int valueConfirm = 0; // flag signifying a new value for EITHER height or angle has been made. Will be used in PID loop to signal when to adjust fan speeds
-volatile char heightConv[16] = ""; // global character array for storing height to be output to LCD
-volatile char angleConv[16] = ""; // global character array for storing angle to be output to LCD
+char heightConv[16] = ""; // global character array for storing height to be output to LCD
+char angleConv[16] = ""; // global character array for storing angle to be output to LCD
+
+void print_angle_change(char *);
+void print_height_change(char *);
+void print_height_angle(char *,  char *, int);
+void test_angles();
+void test_heights();
 
 int main(void)
 {
@@ -207,11 +215,31 @@ ISR(PCINT1_vect)
 				break;
 			case CHEIGHT: // confirm height change value
 				valueConfirm = 1; // set flag
+				// Convert height to angle
+				dAngle = height; // save height variable as double 
+				dAngle = dAngle / 10; // remove extra power from when stored as int
+				dAngle = dAngle * dAngle; // square dAngle
+				dAngle = sqrt(225 - dAngle) / 15;
+				dAngle = acos(dAngle) * (180 / M_PI);  // See Alex's lab notebook for formula used (combo of pythag. and trig.)
+				angle = floor((dAngle * 10));
+				if (height == 150)
+				{
+					angle = 900;
+				}
+				ftoa(angle, angleConv);
 				print_height_angle(angleConv,heightConv, 1); // refresh screen with height selected 
 				state = HEIGHT; // exit from change function
 				break;
 			case CANGLE: // confirm angle change value
 				valueConfirm = 1; // set flag - might need to make unique flag
+				// Convert angle to height
+				dHeight = angle; // save angle as double
+				dHeight = (dHeight/10) * (M_PI / 180); // convert angle to radians
+				dHeight = 15*(cos(dHeight));
+				dHeight = dHeight * dHeight;
+				dHeight = sqrt((225-dHeight));
+				height = floor((dHeight*10));
+				ftoa(height,heightConv);
 				print_height_angle(angleConv,heightConv, 0); // refresh screen with angle selected
 				state = ANGLE;
 				break;
