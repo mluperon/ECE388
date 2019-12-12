@@ -54,6 +54,23 @@ typedef enum __attribute__ ((__packed__)) {HEIGHT, ANGLE, CHEIGHT, CANGLE} State
 	//		    0.00  [0.00]			// Clicking button will confirm value of angle setting valueConfirm flag = 1 and returning user to angle selection (ANGLE)
 	//
 	
+//PID variables
+char tmpOutput[16] = "";
+volatile int pwmChange = 0;
+volatile int previousPosition = 14;
+
+volatile int previousPidError = 0;
+volatile int integral = 0;
+volatile int derivative = 0;
+volatile int output = 0;
+volatile int bias = 0;
+volatile int tmpPotVal = 0;
+
+//Adjustment variables
+volatile int kp = 1;
+volatile int ki = 1;
+volatile int kd = 1;
+
 volatile int state = HEIGHT; // starts in height selection by default
 volatile int height = 0; // global variable for height
 volatile int angle = 0; // global variable for angle
@@ -108,8 +125,12 @@ int main(void)
 	lcd_gotoxy(1,2);
 	// ***** MAIN LOOP ***** //
 	//USART_init();
+	int desiredPosition = 0;
+	int currentPosition = potVal;
+	int pidError = 0;
 	while(1)
 	{
+		
 		//itos(potVal,potConv);
 		//lcd_gotoxy(1,1);
 		//lcd_print(potConv);
@@ -126,6 +147,34 @@ int main(void)
 		// 3)Adjust speed based on distance
 		// 4)loop above
 		// rough eq: potVal = 14 + (angle * 3.96);
+		
+		// need timer = ?
+		currentPosition = potVal; // read current potentiometer value from ADC port
+		if(valueConfirm == 1)
+		{
+			desiredPosition = 14 + (angle *3.96);
+			valueConfirm = 0; // reset flag
+		}
+		
+// 		if ( angle == 0)
+// 			currentPosition = 0; // calculate desired position
+// 		else
+// 			currentPosition = 14 + (angle * 3.96); // calculate desired position
+		pidError = desiredPosition - currentPosition;
+		//integral = integral + pidError;
+		//derivative = pidError - previousPidError;
+		//output = kp*pidError;
+		
+		itos(abs(pidError), tmpOutput);
+		lcd_gotoxy(1,1);
+		lcd_print(tmpOutput);
+		lcd_print("  ");
+		itos(potVal,potConv);
+		lcd_print(potConv);
+		
+		
+		// Set fan speed
+		pwmChange = -1 * (pidError * 5.4);
 		
 	}
 	

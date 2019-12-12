@@ -55,14 +55,16 @@ void ftoa(int n, char* res)
 // 	}
 }
 
+// 65536 max
 void itos(int value, char* result)
 {
 	char numbers[11] = "0123456789";
-	result[0] = numbers[value / 1000];
-	result[1] = numbers[(value % 1000) / 100];
-	result[2] = numbers[(value % 100) / 10];
-	result[3] = numbers[(value %10)];
-	result[4] = '\0';
+	result[0] = numbers[(value / 10000)];
+	result[1] = numbers[(value % 10000) / 1000];
+	result[2] = numbers[(value % 1000) / 100];
+	result[3] = numbers[(value % 100) / 10];
+	result[4] = numbers[(value %10)];
+	result[5] = '\0';
 }
 
 
