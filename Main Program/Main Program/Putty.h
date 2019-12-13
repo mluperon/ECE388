@@ -1,8 +1,6 @@
 /*
- * Putty.h
- *
- * Created: 12/12/2019 12:51:24 PM
- *  Author: dylma
+	Code for displaying strings to PuTTy
+	Code from: https://hekilledmywire.wordpress.com/2011/01/05/using-the-usartserial-tutorial-part-2/
  */ 
 
 

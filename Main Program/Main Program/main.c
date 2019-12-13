@@ -1,12 +1,16 @@
 /*
- * Lab7.c
- *
- * Created: 4/8/2019 10:29:57 AM
- * Author : dtocci1
- *
- *	TO DO: Finish pin change routine
- *		   Implement all peripherals and ports
- *		   *** FIX PRINT FUNCTIONS ***
+	Code for: The Balancing Fan Project
+	Group Name: The Midnight Snack Club
+	Group Members: Alex Amorim, Liam Cross, Melanie Luperon, and Dylan Tocci
+	
+	Features:
+		- User interface controlled by LCD display and Rotary encoder
+		- 0-90 degrees of selection, user can increment by 1 degree at a time
+		- 0-25 inches of selection, user can select 1 inch at a time
+		- Live reading of fan arm position at all times
+		- Adjustable contrast on LCD display
+		- Debugging mode for developer (commented out)
+		- Functioning PID loop
  */ 
 
 #define F_CPU 16000000
@@ -17,12 +21,12 @@
 #include <util/delay.h>
 #include "lcd_functions.h" // Dr. Viall's code for using the LCD
 #include "floatConvert.h" // Code to convert a float into a character array
-#include "Putty.h"
+#include "Putty.h"	// See Putty.h for code source - used to attempt to interface with PuTTy
 
 #define HEIGHT_SELECT "[HEIGHT]  ANGLE "
 #define ANGLE_SELECT " HEIGHT  [ANGLE]"
 #define NO_HS_SELECT " HEIGHT   ANGLE "
-#define DEFAULT_ANGLE " 00.0      00.0 "
+#define DEFAULT_ANGLE "   00       00 "
 #define MAX_HEIGHT 15 // max height value 1.5ft
 #define MAX_ANGLE 90 // max angle value 90 degrees
 #define RIGHT 0b01110011 // PINC value for turning right
@@ -94,12 +98,11 @@ int main(void)
 	// These variables are Char arrays as the LCD cannot output int/float values, it must be sent as a string
 	angleConv[0]='0'; // v Set up height and angle to start at 00.0 value
 	angleConv[1]='0';
-	angleConv[2]='.';
-	angleConv[3]='0';
+	angleConv[2]='\0';
 	heightConv[0]='0';
 	heightConv[1]='0';
-	heightConv[2]='.';
-	heightConv[3]='0';// ^
+	heightConv[2]='\0';
+	// ^
 	
 	// Set up all outside ports (LCD, Rotary encoder, PWM, ADC, timers, etc.)
 	peripheralSetup();
@@ -134,7 +137,7 @@ int main(void)
 	// Code can be found in Putty.h header file
 	
 	// PID variables were placed here to debug a bug found in earlier code - * does not seem necessary
-	int desiredPosition = 212; // 50 degree desired upon startup
+	int desiredPosition = 0; // 0 degree desired upon startup
 	int currentPosition = potVal; // set current position to whatever potentiometer reads while fan is flat
 	int pidError = 0; 
 
@@ -206,7 +209,7 @@ int main(void)
 		previousPidError = pidError; // Save current error as previous error for next iteration of PID loop
 		
 		// Possible delay for PID loop
-		//_delay_ms(10);
+		_delay_ms(10);
 		
 	}
 	
@@ -225,8 +228,11 @@ int main(void)
 ISR(PCINT1_vect)
 {
 	_delay_ms(5);
-	
-	if(PINC == RIGHT) //if right turn triggered interrupt
+//  ** Debug Code for showing PINC values when entering interrupt on LCD **
+// 	ftoa(PINC, potConv);
+// 	lcd_gotoxy(1,2);
+// 	lcd_print(potConv);
+	if(PINC == RIGHT) //if right turn triggered interrupt - 0b01110011 --- (PINC & 0b00000100) == 0b00000100
 	{
 		switch(state)
 		{
@@ -439,15 +445,13 @@ void print_height_angle(char *angleConv, char *heightConv, int heightSelect)
 		lcd_print(ANGLE_SELECT);
 	// un-select bottom row
 	lcd_gotoxy(1,2);
-	lcd_print(" ");
+	lcd_print("   "); // remove bracket
 	lcd_print(heightConv);
-	lcd_gotoxy(6,2);
-	lcd_print(" ");
-	lcd_gotoxy(10,2);
-	lcd_print(" ");
+	lcd_print(" "); //remove bracket
+	lcd_gotoxy(12,2);
+	lcd_print(" "); //remove bracket
 	lcd_print(angleConv);
-	lcd_gotoxy(15,2);
-	lcd_print(" ");
+	lcd_print(" "); //remove bracket
 }
 
 // Function used to print a change in the height value
@@ -456,11 +460,9 @@ void print_height_change(char *conversion)
 	//ensure height becomes unselected
 	lcd_gotoxy(1,1);
 	lcd_print(NO_HS_SELECT);
-	lcd_gotoxy(1,2);
+	lcd_gotoxy(3,2);
 	lcd_print("[");
-	lcd_gotoxy(2,2);
 	lcd_print(conversion);
-	lcd_gotoxy(6,2);
 	lcd_print("]");
 }
 
@@ -469,11 +471,9 @@ void print_angle_change(char *conversion)
 {
 	lcd_gotoxy(1,1);
 	lcd_print(NO_HS_SELECT);
-	lcd_gotoxy(10,2);
+	lcd_gotoxy(12,2);
 	lcd_print("[");
-	lcd_gotoxy(11,2);
 	lcd_print(conversion);
-	lcd_gotoxy(15,2);
 	lcd_print("]");
 	
 }

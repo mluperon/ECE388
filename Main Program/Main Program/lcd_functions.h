@@ -1,8 +1,8 @@
 /*
- * lcd_functions.h
- *
- * Created: 10/24/2019 12:12:52 PM
- *  Author: dylma
+	Code for printing to the LCD
+	Taken from old code of ECE 263 Course
+	Code by: Dr. Phillip Viall
+
  */ 
 
 
