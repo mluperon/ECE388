@@ -65,11 +65,11 @@ volatile int derivative = 0;
 volatile int output = 0;
 volatile int bias = 0;
 volatile int tmpPotVal = 0;
-
+volatile int overflow = 0;
 //Adjustment variables
-volatile int kp = 1;
-volatile int ki = 1;
-volatile int kd = 1;
+volatile float kp = 1500;
+volatile float ki = 0;
+volatile float kd = 250;
 
 volatile int state = HEIGHT; // starts in height selection by default
 volatile int height = 0; // global variable for height
@@ -125,9 +125,10 @@ int main(void)
 	lcd_gotoxy(1,2);
 	// ***** MAIN LOOP ***** //
 	//USART_init();
-	int desiredPosition = 0;
+	int desiredPosition = 212;
 	int currentPosition = potVal;
 	int pidError = 0;
+
 	while(1)
 	{
 		
@@ -152,7 +153,8 @@ int main(void)
 		currentPosition = potVal; // read current potentiometer value from ADC port
 		if(valueConfirm == 1)
 		{
-			desiredPosition = 14 + (angle *3.96);
+			desiredPosition = (angle *3.96) + 14;
+			// desiredPosition = 370 - ((angle *3.96) + 14);
 			valueConfirm = 0; // reset flag
 		}
 		
@@ -161,20 +163,38 @@ int main(void)
 // 		else
 // 			currentPosition = 14 + (angle * 3.96); // calculate desired position
 		pidError = desiredPosition - currentPosition;
-		//integral = integral + pidError;
-		//derivative = pidError - previousPidError;
-		//output = kp*pidError;
+		integral = integral + pidError;
+		derivative = pidError - previousPidError;
+		output = kp*pidError + ki*integral + kd*derivative;
 		
 		itos(abs(pidError), tmpOutput);
 		lcd_gotoxy(1,1);
 		lcd_print(tmpOutput);
 		lcd_print("  ");
 		itos(potVal,potConv);
+		lcd_gotoxy (1,7);
 		lcd_print(potConv);
 		
-		
 		// Set fan speed
-		pwmChange = -1 * (pidError * 5.4);
+		pwmChange =  -1 * (output); // Liam changed -------------------------------------------------------------------------------
+		if((OCR1A + pwmChange) <= 38000 && (OCR1A + pwmChange) >= 36000)
+			OCR1A = OCR1A + pwmChange - 1;
+		else
+		{
+			if (OCR1A + pwmChange > 38000 )
+			{
+				overflow = OCR1A + pwmChange - 38000;
+				OCR1A = OCR1A + (pwmChange - overflow - 1);	
+			}
+			else
+			{
+				overflow = 36000 - (OCR1A + pwmChange);
+				OCR1A = OCR1A + (pwmChange + overflow) + 1;
+			}
+		}
+		
+		previousPidError = pidError;
+		//_delay_ms(10);
 		
 	}
 	
@@ -190,7 +210,6 @@ int main(void)
 //	-Button press either:
 //		- Confirms height / angle adjustment
 //		- Selects angle / height and moves user to adjust height / angle
-
 ISR(PCINT1_vect)
 {
 	_delay_ms(5);
@@ -303,6 +322,7 @@ ISR(PCINT1_vect)
 		}
 	}
 	
+
 	while(PINC != 0b01110111)
 	{
 		
@@ -336,6 +356,7 @@ ISR(ADC_vect)
 
 void peripheralSetup()
 {
+	
 	DDRC &= ~(1<<3);
 	PORTC |= (1 << 3);
 		
