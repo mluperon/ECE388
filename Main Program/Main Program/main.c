@@ -33,6 +33,7 @@
 #define BASE PE3
 //#define _BV(n) (1 << n)
 
+// Function prototypes
 void print_angle_change(char *);
 void print_height_change(char *);
 void print_height_angle(char *,  char *, int);
@@ -55,10 +56,9 @@ typedef enum __attribute__ ((__packed__)) {HEIGHT, ANGLE, CHEIGHT, CANGLE} State
 	//
 	
 //PID variables
-char tmpOutput[16] = "";
+char tmpOutput[16] = ""; // Debugging char array for PID to print to LCD
 volatile int pwmChange = 0;
 volatile int previousPosition = 14;
-
 volatile int previousPidError = 0;
 volatile int integral = 0;
 volatile int derivative = 0;
@@ -66,7 +66,10 @@ volatile int output = 0;
 volatile int bias = 0;
 volatile int tmpPotVal = 0;
 volatile int overflow = 0;
+
 //Adjustment variables
+//These values below worked best up to this point in time
+//They are seemingly random
 volatile float kp = 1500;
 volatile float ki = 0;
 volatile float kd = 250;
@@ -76,13 +79,13 @@ volatile int height = 0; // global variable for height
 volatile int angle = 0; // global variable for angle
 volatile double dAngle = 0.0; // temporary double for angle
 volatile double dHeight = 0.0; // temporary double for height
-volatile int valueChange = 1;
+volatile int valueChange = 1; // Can be changed to modify how quickly height and angle may be adjusted
 volatile int valueConfirm = 0; // flag signifying a new value for EITHER height or angle has been made. Will be used in PID loop to signal when to adjust fan speeds
-volatile int setupFlag = 0;
-volatile int potVal=0;
+volatile int setupFlag = 0; // flag signifying the setup is completed
+volatile int potVal=0; // Holds current value for potentiometer (position of fan)
 char heightConv[16] = ""; // global character array for storing height to be output to LCD
 char angleConv[16] = ""; // global character array for storing angle to be output to LCD
-char potConv[16] = "";
+char potConv[16] = ""; // Debugging char array used for printing value of potentiometer to LCD screen
 volatile int overflowCount = 0; // global variable used for tracking how many times the timer overflows (each overflow is equivalent to one second)
 
 int main(void)
@@ -98,8 +101,12 @@ int main(void)
 	heightConv[2]='.';
 	heightConv[3]='0';// ^
 	
+	// Set up all outside ports (LCD, Rotary encoder, PWM, ADC, timers, etc.)
 	peripheralSetup();
+	
+	// Enable input from ADC conversion
 	ADCSRA |= (1<<ADSC);
+	
 	//SETUP COMPLETE
 	lcd_gotoxy(1,1); // go to row 1 column 1 of LCD
 	lcd_print("System start    "); // Print ->   [HEIGHT] ANGLE
@@ -112,7 +119,6 @@ int main(void)
 	lcd_print("Enjoy! :)       ");
 	_delay_ms(2000);
 	
-	
 	// ***** Enable User Control ***** //		
 	PCICR |= (1<<PCIE1); // Enable pin change interrupt on PORTC
 	PCMSK1 |= (1<<PCINT12) | (1<<PCINT9) | (1<<PCINT10); // Enable Pins 1,2, and 4 to trigger this interrupt
@@ -122,12 +128,15 @@ int main(void)
 	lcd_gotoxy(1,2); // go to row 2 column 2 of LCD
 	lcd_print(DEFAULT_ANGLE); // Print -> 00.0 00.0
 
-	lcd_gotoxy(1,2);
 	// ***** MAIN LOOP ***** //
 	//USART_init();
-	int desiredPosition = 212;
-	int currentPosition = potVal;
-	int pidError = 0;
+	// ^ Usart messes up LCD very badly, and could not be used for debug
+	// Code can be found in Putty.h header file
+	
+	// PID variables were placed here to debug a bug found in earlier code - * does not seem necessary
+	int desiredPosition = 212; // 50 degree desired upon startup
+	int currentPosition = potVal; // set current position to whatever potentiometer reads while fan is flat
+	int pidError = 0; 
 
 	while(1)
 	{
@@ -167,33 +176,36 @@ int main(void)
 		derivative = pidError - previousPidError;
 		output = kp*pidError + ki*integral + kd*derivative;
 		
-		itos(abs(pidError), tmpOutput);
-		lcd_gotoxy(1,1);
-		lcd_print(tmpOutput);
-		lcd_print("  ");
-		itos(potVal,potConv);
-		lcd_gotoxy (1,7);
-		lcd_print(potConv);
+//	**** LCD PRINT STATEMENTS FOR DEBUGGING ****
+// 		itos(abs(pidError), tmpOutput);
+// 		lcd_gotoxy(1,1);
+// 		lcd_print(tmpOutput);
+// 		lcd_print("  ");
+// 		itos(potVal,potConv);
+// 		lcd_gotoxy (1,7);
+// 		lcd_print(potConv);
 		
 		// Set fan speed
 		pwmChange =  -1 * (output); // Liam changed -------------------------------------------------------------------------------
-		if((OCR1A + pwmChange) <= 38000 && (OCR1A + pwmChange) >= 36000)
+		if((OCR1A + pwmChange) <= 38000 && (OCR1A + pwmChange) >= 36000) // Ensure new PWM value within bounds of speed controller
 			OCR1A = OCR1A + pwmChange - 1;
 		else
 		{
-			if (OCR1A + pwmChange > 38000 )
+			if (OCR1A + pwmChange > 38000 ) // Speed is too large
 			{
-				overflow = OCR1A + pwmChange - 38000;
-				OCR1A = OCR1A + (pwmChange - overflow - 1);	
+				overflow = OCR1A + pwmChange - 38000; // Calculate how much it overshoots and find max value that can be added within bounds
+				OCR1A = OCR1A + (pwmChange - overflow - 1);	// Add said value ( -1 to be safe )
 			}
 			else
 			{
-				overflow = 36000 - (OCR1A + pwmChange);
-				OCR1A = OCR1A + (pwmChange + overflow) + 1;
+				overflow = 36000 - (OCR1A + pwmChange); // Calculate how much it undershoots and find max value that can be added (pwmChange will be negative in this case) within bounds
+				OCR1A = OCR1A + (pwmChange + overflow) + 1; // Add said value ( +1 to be safe )
 			}
 		}
 		
-		previousPidError = pidError;
+		previousPidError = pidError; // Save current error as previous error for next iteration of PID loop
+		
+		// Possible delay for PID loop
 		//_delay_ms(10);
 		
 	}
@@ -204,8 +216,8 @@ int main(void)
 // Rotary encoder interrupt based on pin change:
 // -Adjusts LCD Display (what is selected)
 // -Changes height / angle
-//		- 0 <= angle <= 90
-//		- 0 <= height <= ???
+//		- 0 <= angle <= 90 degrees
+//		- 0 <= height <= 15 in
 //		- maybe add feature to indicate height / angle reached max value on LCD
 //	-Button press either:
 //		- Confirms height / angle adjustment
@@ -223,16 +235,16 @@ ISR(PCINT1_vect)
 				state = ANGLE;
 				break;
 			case ANGLE:
-			// do nothing
-			break;
+				// do nothing
+				break;
 			case CHEIGHT: // increment height value (as long as < MAX (?))
-			if ((height+valueChange) <= MAX_HEIGHT) // total guess right now
-			{
-				height = height + valueChange; //increment height by tenth
-				ftoa(height,heightConv); // convert height to char array (heightConv) with 1 decimal place
-				print_height_change(heightConv); // print conversion to LCD
-			}
-			break;
+				if ((height+valueChange) <= MAX_HEIGHT) // total guess right now
+				{
+					height = height + valueChange; //increment height by tenth
+					ftoa(height,heightConv); // convert height to char array (heightConv) with 1 decimal place
+					print_height_change(heightConv); // print conversion to LCD
+				}
+				break;
 			case CANGLE: // increment angle value (as long as <= MAX (90))
 				if ((angle+valueChange) <= MAX_ANGLE)
 				{
@@ -240,7 +252,7 @@ ISR(PCINT1_vect)
 					ftoa(angle,angleConv); // convert angle to char array (angleConv) with 1 decimal place
 					print_angle_change(angleConv);	// print conversion to LCD
 				}
-			break;
+				break;
 		}
 	}
 	
@@ -250,28 +262,28 @@ ISR(PCINT1_vect)
 		switch(state)
 		{
 			case HEIGHT: // Change increment/decrement value to 1
-			// do nothing
-			break;
+				// do nothing
+				break;
 			case ANGLE: // change to height state
-			print_height_angle(angleConv,heightConv, 1);
-			state = HEIGHT;
-			break;
+				print_height_angle(angleConv,heightConv, 1);
+				state = HEIGHT;
+				break;
 			case CHEIGHT: // decrement height value (as long as >= MIN (0) )
-			if ((height-valueChange) >= 0)
-			{
-				height = height - valueChange;
-				ftoa(height,heightConv); // convert height to char array (heightConv) with 1 decimal place
-				print_height_change(heightConv); // print conversion to LCD
-			}
-			break;
+				if ((height-valueChange) >= 0)
+				{
+					height = height - valueChange;
+					ftoa(height,heightConv); // convert height to char array (heightConv) with 1 decimal place
+					print_height_change(heightConv); // print conversion to LCD
+				}
+				break;
 			case CANGLE: // increment angle value (as long as >= MIN (0))
-			if((angle-valueChange) >= 0)
-			{
-				angle = angle - valueChange;
-				ftoa(angle,angleConv); // convert angle to char array (angleConv) with 1 decimal place
-				print_angle_change(angleConv);	// print conversion to LCD
-			}
-			break;
+				if((angle-valueChange) >= 0)
+				{
+					angle = angle - valueChange;
+					ftoa(angle,angleConv); // convert angle to char array (angleConv) with 1 decimal place
+					print_angle_change(angleConv);	// print conversion to LCD
+				}
+				break;
 		}
 	}
 
@@ -302,10 +314,10 @@ ISR(PCINT1_vect)
 				{
 					angle = 90;
 				}
-			ftoa(angle, angleConv);
-			print_height_angle(angleConv,heightConv, 1); // refresh screen with height selected
-			state = HEIGHT; // exit from change function
-			break;
+				ftoa(angle, angleConv);
+				print_height_angle(angleConv,heightConv, 1); // refresh screen with height selected
+				state = HEIGHT; // exit from change function
+				break;
 			case CANGLE: // confirm angle change value
 				valueConfirm = 1; // set flag - might need to make unique flag
 				// Convert angle to height
@@ -318,7 +330,7 @@ ISR(PCINT1_vect)
 				ftoa(height,heightConv);
 				print_height_angle(angleConv,heightConv, 0); // refresh screen with angle selected
 				state = ANGLE;
-			break;
+				break;
 		}
 	}
 	
@@ -356,19 +368,20 @@ ISR(ADC_vect)
 
 void peripheralSetup()
 {
-	
-	DDRC &= ~(1<<3);
+	// Set up ADC on PortC(3)
+	DDRC &= ~(1<<3); // Set PC3 as input
 	PORTC |= (1 << 3);
-		
+	
+	// Set registers for ADC on PortC3
 	ADMUX = (0b01<<REFS0|(0<<ADLAR)|(0b0011<<MUX0));
 	ADCSRA = (1<<ADEN)|(0<<ADSC)|(0<<ADATE)|(0<<ADIF)|(1<<ADIE)|(0b111<<ADPS0);
-		
 	ADCSRB = 0b000<<ADTS0;
 	
-	PORTE &= ~(1<<3); // Ensure 12V is OFF
-	DDRE &= ~(1<<3);  // Ensure 12V is OFF
 	
-	//********************************************** PIN CHANGE INTERRUPT SETUP **********************************************//
+	PORTE &= ~(1<<3); // Ensure 12V is OFF for speed controller 
+	DDRE &= ~(1<<3);  // Ensure 12V is OFF for speed controller
+	
+	//************************************** PIN CHANGE INTERRUPT SETUP *************************************//
 	DDRC &= ~(_BV(2) | _BV(1) | _BV(4)); // sets PORTC 1, 2, and 4 to input (input from rotary encoder)
 	// 1 = DT signal
 	// 2 = CLK signal
@@ -390,7 +403,9 @@ void peripheralSetup()
 	TIMSK3 = (0 << TOIE3); // Ensure timer 3 is disabled
 	TCNT3 = -15625; // One second timer value
 	
+	// Enable global interrupts
 	sei();
+	
 	// Set up LCD and print starting message state
 	lcd_init(); // initialize the LCD according to Dr. Viall's 263 code
 	lcd_gotoxy(1,1); // go to row 1 column 1 of LCD
@@ -399,19 +414,16 @@ void peripheralSetup()
 	lcd_print("Please wait..."); // Print -> 00.0 00.0
 	
 	
-	 // enable global interrupts
-	
 	// ***** SPEED CONTROLLER STARTUP ***** //
 	TIMSK3 = (1 << TOIE3); // Enable PWM timer for startup
-	//_delay_ms(1);
 	PORTE |= (1<<BASE); // TURN ON 12V SUPPLY
 	DDRE |= (1<<BASE);   // TURN ON 12V SUPPLY
-	//_delay_ms(4000);
-	//OCR1A=38000-1;	// adjust pulse width of waveform being generated from 2ms to 1ms
-	//_delay_ms(3000);
+
 	while (setupFlag != 1)
 	{
-		//wait until setup is completed
+		// Wait until setup is completed
+		// This flag will be set by Timer3 Overflow, after it has counted 5 seconds
+		// This gives the speed controller time to set up according to its specs on the datasheet
 	}
 }
 
