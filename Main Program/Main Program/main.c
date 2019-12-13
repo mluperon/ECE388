@@ -74,9 +74,9 @@ volatile int overflow = 0;
 //Adjustment variables
 //These values below worked best up to this point in time
 //They are seemingly random
-volatile float kp = 1500;
+volatile float kp = 50;
 volatile float ki = 0;
-volatile float kd = 250;
+volatile float kd = 600;
 
 volatile int state = HEIGHT; // starts in height selection by default
 volatile int height = 0; // global variable for height
@@ -187,9 +187,12 @@ int main(void)
 // 		itos(potVal,potConv);
 // 		lcd_gotoxy (1,7);
 // 		lcd_print(potConv);
-		
+//----------------------------------------------------------------------------------------------------------------
+
+
+
 		// Set fan speed
-		pwmChange =  -1 * (output); // Liam changed -------------------------------------------------------------------------------
+		pwmChange =  -1 * (output); // Liam changed -------------------------------------------------------------------------
 		if((OCR1A + pwmChange) <= 38000 && (OCR1A + pwmChange) >= 36000) // Ensure new PWM value within bounds of speed controller
 			OCR1A = OCR1A + pwmChange - 1;
 		else
@@ -205,11 +208,11 @@ int main(void)
 				OCR1A = OCR1A + (pwmChange + overflow) + 1; // Add said value ( +1 to be safe )
 			}
 		}
-		
+		//------------------------------------------------------------------------------------------------------------------------------
 		previousPidError = pidError; // Save current error as previous error for next iteration of PID loop
 		
 		// Possible delay for PID loop
-		_delay_ms(10);
+		_delay_ms(1);
 		
 	}
 	
